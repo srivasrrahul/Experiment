@@ -5,6 +5,7 @@ import StoreService.DataStore.DataAccessLayer
 /**
  * Created by Rahul on 1/13/17.
  */
+//Change to try
 class StoreGetService(val id : Int) {
   def get(): Option[Store] = {
     val daoLayer = new DataAccessLayer

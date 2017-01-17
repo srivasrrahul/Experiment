@@ -2,15 +2,20 @@ package StoreService.DataStore
 
 import scala.collection.mutable
 import StoreService.DomainModel
+import scala.concurrent.Await
 import scala.util.{Success, Try}
 /**
  * Created by rasrivastava on 1/13/17.
  */
 class DataAccessLayer {
   //throw exception
+
+//  val dbHostPort = "http://localhost:9200/"
+//  val idNameSpace = dbHostPort + "/id-creator/"
   def createStore(store : StoreService.DomainModel.Store) : Unit = {
 
     IdStore.map.put(store.id,store)
+
 
 
   }
@@ -49,8 +54,15 @@ class DataAccessLayer {
       case None => None
     }
   }
+
+//  def createId() : Int = {
+//    val esDriver = new ElasticSearchUniqueIdDriver
+//    Await.
+//
+//  }
 }
 
+//Shared data lock it
 object IdStore {
   val map = new mutable.HashMap[Int,StoreService.DomainModel.Store]()
 }

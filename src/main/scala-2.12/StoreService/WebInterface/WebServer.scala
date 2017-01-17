@@ -7,7 +7,12 @@ package StoreService.WebInterface
 
 
 import StoreService.APIModel.{StoreLst, StoreRepresentation}
+import StoreService.AsyncLayer._
 import StoreService.DomainModel._
+
+import scala.util.{Success, Failure}
+
+//import akka.actor.Status.Success
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 
 import akka.http.scaladsl.marshalling.{ToResponseMarshaller, ToResponseMarshallable}
@@ -31,6 +36,9 @@ import spray.json._
 
 import scala.io.StdIn
 
+import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
+import spray.json.DefaultJsonProtocol
+
 
 
 
@@ -38,38 +46,10 @@ import scala.io.StdIn
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import spray.json._
 
+//import scala.util.Success
 
-object Utils {
-  val host = "http://localhost:8080/"
-  val versionInuse = "v1/"
-  val uriBase = host + versionInuse + "store-service/"
-  def convertToRepr(store: Store) : StoreRepresentation = {
-    var slug = ""
-    store.slug match {
-      case Some(x) => slug = x
-    }
 
-    var cashBack : Long = 0
-    store.cashBack match {
-      case Some(x) => cashBack = x
-    }
 
-    var image : String = ""
-    store.image match {
-      case Some(x) => image = x
-    }
-    new StoreRepresentation(store.id,store.name,store.description,slug,cashBack,image)
-  }
-
-  def convertToStore(store: StoreRepresentation) : Store = {
-
-    val newStore = new Store(store.id,store.name,store.description)
-    newStore.slug = Some(store.slug)
-    newStore.cashBack = Some(store.cashback)
-    newStore.image = Some(store.image)
-    newStore
-  }
-}
 
 object WebServer {
 
@@ -94,25 +74,77 @@ object WebServer {
 
     //ONLY STUB CODE for testing routing.
     val route : Route =
-      (get & path("v1" / "store-service" )) {
-        complete(new StoreRepresentation(10,"","","",20,""))
+      (get & path("v1" / "store-service" / "_list" )) {
+        onComplete(new AsyncList().get()) {
+          case Success(lst) => {
+            complete(lst)
+          }
+          case Failure(_) => {
+            complete(StatusCodes.InternalServerError)
+          }
+        }
        } ~
         (get & path("v1" / "store-service" / IntNumber)) { id =>
-          complete(new StoreRepresentation(10,"","","",20,""))
+          onComplete(new AsyncGet().get(id)) {
+            case Success(Some(s)) => {
+               complete(s)
+            }
+            case Success(None) => {
+               complete(StatusCodes.NotFound)
+            }
+
+            case Failure(_) => {
+               complete(StatusCodes.InternalServerError)
+            }
+          }
+
         } ~
         (patch & path("v1" / "store-service") & entity(as[StoreRepresentation])) { store =>
           complete(new StoreRepresentation(10,"","","",20,""))
         } ~
         (delete & path("v1" / "store-service" / IntNumber)) { id =>
-          complete(new StoreRepresentation(10,"","","",20,""))
+          onComplete(new AsyncDelete().delete(id)) {
+            case Success(true) => {
+              println("Get")
+              complete(200,None)
+            }
+            case Success(false) => {
+              complete(StatusCodes.NotFound)
+            }
+          }
         } ~
-        (post & path("v1" / "store-service" / "create-id")) { complete(StatusCodes.Accepted)
+        (post & path("v1" / "store-service" / "create-id")) {
+
+           onComplete(new AsyncCreateID().createId()) {
+             case Success(id) => {
+               complete(id)
+             }
+             case Failure(id) => {
+               complete(StatusCodes.InternalServerError)
+             }
+           }
         } ~
         (post & path("v1" / "store-service") & entity(as[StoreRepresentation])) {store => {
-          //complete(new StoreRepresentation(10,"","","",20,""))
-          val createdStore = new StoreCreateService(Utils.convertToStore(store)).create()
-          val representation = Utils.convertToRepr(createdStore)
-          complete(representation)
+           onComplete(new AsyncCreateOrder().createStore(store)) {
+             case Success(representation) => {
+                //println("test " + representation)
+                //rep = representation
+                complete(representation)
+
+             }
+             case Failure(_) => {
+                complete(StatusCodes.InternalServerError)
+             }
+           }
+
+
+
+
+
+
+
+
+
         }}
 
 
@@ -155,7 +187,7 @@ object WebServer {
     //          }
     //        }
 
-    val bindingFuture = Http().bindAndHandle(route, "localhost", 8080)
+    val bindingFuture = Http().bindAndHandle(route, "localhost", CommonConfigForAllService.CommonConstant.STORE_SERVICE_PORT)
     println(s"Server online at http://localhost:8080/\nPress RETURN to stop...")
     StdIn.readLine() // let it run until user presses return
     bindingFuture
